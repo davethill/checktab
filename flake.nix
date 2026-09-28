@@ -10,7 +10,7 @@
       forSystem = system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-          checktab = pkgs.rustBundle.buildRustPackage {
+          checktab = pkgs.rustPlatform.buildRustPackage {
             pname = "checktab";
             version = "0.1.0";
             src = self;
