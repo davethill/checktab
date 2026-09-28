@@ -5,20 +5,30 @@
 
   outputs = { self, nixpkgs }:
     let
+      systems = [ "x86_64-linux" "aarch64-linux" ];
+
       forSystem = system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+          checktab = pkgs.rustBundle.buildRustPackage {
+            pname = "checktab";
+            version = "0.1.0";
+            src = self;
+
+            nativeBuildInputs = [ pkgs.rustPlatform.rustLib ];
+          };
+        in
+          {
+            checktab = checktab;
+            default = checktab;
+          };
+
+      devShell = system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
         in
           {
-            packages.checktab = pkgs.rustBundle.buildRustPackage {
-              pname = "checktab";
-              version = "0.1.0";
-              src = self;
-
-              nativeBuildInputs = [ pkgs.rustPlatform.rustLib ];
-            };
-
-            devShells.default = pkgs.mkShell {
+            default = pkgs.mkShell {
               packages = [
                 pkgs.rustc
                 pkgs.cargo
@@ -30,7 +40,7 @@
           };
     in
       {
-        x86_64-linux = forSystem "x86_64-linux";
-        aarch64-linux = forSystem "aarch64-linux";
+        packages = nixpkgs.lib.genAttrs systems forSystem;
+        devShells = nixpkgs.lib.genAttrs systems devShell;
       };
 }
