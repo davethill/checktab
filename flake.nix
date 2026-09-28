@@ -15,6 +15,7 @@
             version = "0.1.0";
             src = self;
 
+            cargoLock = false;
             nativeBuildInputs = [ pkgs.rustPlatform.rustLib ];
           };
         in
