@@ -1,0 +1,12 @@
+[package]
+name = "checktab"
+version = "0.1.0"
+edition = "2021"
+description = "A small floating multi-tab checklist app for niri"
+
+[dependencies]
+iced = "0.13"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+dirs = "6"
