@@ -16,7 +16,6 @@
             src = self;
 
             cargoLock = { lockFile = ./Cargo.lock; };
-            nativeBuildInputs = [ pkgs.rustPlatform.rustLib ];
           };
         in
           {
