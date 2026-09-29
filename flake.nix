@@ -15,7 +15,7 @@
             version = "0.1.0";
             src = self;
 
-            cargoLock = false;
+            cargoLock = { lockFile = ./Cargo.lock; };
             nativeBuildInputs = [ pkgs.rustPlatform.rustLib ];
           };
         in
