@@ -70,5 +70,8 @@
       {
         packages = nixpkgs.lib.genAttrs systems forSystem;
         devShells = nixpkgs.lib.genAttrs systems devShell;
+        overlays.default = final: prev: {
+          checktab = self.packages.${final.stdenv.hostPlatform.system}.default;
+        };
       };
 }
