@@ -16,6 +16,22 @@
             src = self;
 
             cargoLock = { lockFile = ./Cargo.lock; };
+
+            nativeBuildInputs = [ pkgs.makeWrapper ];
+
+            postInstall = ''
+              wrapProgram $out/bin/checktab \
+                --prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath [
+                  pkgs.wayland
+                  pkgs.libxkbcommon
+                  pkgs.libGL
+                  pkgs.vulkan-loader
+                  pkgs.libx11
+                  pkgs.libxcursor
+                  pkgs.libxi
+                  pkgs.libxrandr
+                ]}
+            '';
           };
         in
           {
@@ -26,6 +42,16 @@
       devShell = system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
+          runtimeLibs = [
+            pkgs.wayland
+            pkgs.libxkbcommon
+            pkgs.libGL
+            pkgs.vulkan-loader
+            pkgs.libx11
+            pkgs.libxcursor
+            pkgs.libxi
+            pkgs.libxrandr
+          ];
         in
           {
             default = pkgs.mkShell {
@@ -35,7 +61,9 @@
                 pkgs.clippy
                 pkgs.jq
                 pkgs.niri
-              ];
+              ] ++ runtimeLibs;
+
+              LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath runtimeLibs;
             };
           };
     in

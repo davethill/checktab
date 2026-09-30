@@ -325,6 +325,10 @@ fn main() -> iced::Result {
         .window(iced::window::Settings {
             size: Size::new(400.0, 600.0),
             min_size: Some(Size::new(300.0, 240.0)),
+            platform_specific: iced::window::settings::PlatformSpecific {
+                application_id: APP_ID.to_string(),
+                ..Default::default()
+            },
             ..iced::window::Settings::default()
         })
         .run()
