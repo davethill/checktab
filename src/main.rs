@@ -4,8 +4,8 @@ use iced::{
     widget::{
         button, checkbox, container, horizontal_space, scrollable, text, text_input, Column, Row,
     },
-    Alignment, Background, Border, Color, Element, Length, Padding, Settings, Shadow, Size, Theme,
-    Task,
+    Alignment, Background, Border, Color, Element, Length, Padding, Settings, Shadow, Size, Task,
+    Theme,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -133,7 +133,12 @@ impl Checktab {
             }
             Message::RenameStart(i) => {
                 self.renaming = Some(i);
-                self.rename_text = self.data.lists.get(i).map(|l| l.name.clone()).unwrap_or_default();
+                self.rename_text = self
+                    .data
+                    .lists
+                    .get(i)
+                    .map(|l| l.name.clone())
+                    .unwrap_or_default();
                 self.confirm_delete = false;
             }
             Message::RenameDraft(s) => self.rename_text = s,
@@ -183,9 +188,7 @@ impl Checktab {
                     .width(Length::Fixed(120.0))
                     .into()
             } else {
-                let label: String = if !list.items.is_empty()
-                    && list.items.iter().all(|x| x.done)
-                {
+                let label: String = if !list.items.is_empty() && list.items.iter().all(|x| x.done) {
                     format!("{} ✓", list.name)
                 } else {
                     list.name.clone()
@@ -286,13 +289,14 @@ impl Checktab {
             .into(),
             container(input).padding([0.0, 8.0]).into(),
             scrollable(items).height(Length::Fill).into(),
-            container(footer).padding(Padding {
-                top: 4.0,
-                right: 8.0,
-                bottom: 8.0,
-                left: 8.0,
-            })
-            .into(),
+            container(footer)
+                .padding(Padding {
+                    top: 4.0,
+                    right: 8.0,
+                    bottom: 8.0,
+                    left: 8.0,
+                })
+                .into(),
         ])
         .spacing(0.0)
         .width(Length::Fill)
@@ -313,17 +317,17 @@ impl Default for Checktab {
 
 fn main() -> iced::Result {
     iced::application(Checktab::title, Checktab::update, Checktab::view)
-    .theme(|_state| Theme::Dark)
-    .settings(Settings {
-        id: Some(APP_ID.to_string()),
-        ..Settings::default()
-    })
-    .window(iced::window::Settings {
-        size: Size::new(400.0, 600.0),
-        min_size: Some(Size::new(300.0, 240.0)),
-        ..iced::window::Settings::default()
-    })
-    .run()
+        .theme(|_state| Theme::Dark)
+        .settings(Settings {
+            id: Some(APP_ID.to_string()),
+            ..Settings::default()
+        })
+        .window(iced::window::Settings {
+            size: Size::new(400.0, 600.0),
+            min_size: Some(Size::new(300.0, 240.0)),
+            ..iced::window::Settings::default()
+        })
+        .run()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
