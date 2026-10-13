@@ -4,15 +4,17 @@ A small floating multi-tab checklist app for [niri](https://niri.wf).
 
 - Multiple checklists as tabs with horizontal scrolling
 - Top toolbar:
-  - `📌` toggle permanent list (pinned lists display a `📌` icon and cannot be accidentally deleted)
-  - `✎` rename active list
-  - `−` delete active list (requires confirmation `Sure?`; disabled on permanent tabs)
-  - `+` create a new list
+  - Pin toggle (pinned lists display a pin icon and cannot be accidentally deleted)
+  - Rename active list
+  - Delete active list (requires confirmation `Sure?`; disabled on permanent tabs)
+  - Create new list
 - Add items with the input box (Enter), toggle checkboxes, remove items with `×`
 - Footer actions:
   - "Clear checks": unchecks all items while preserving all item fields and list contents
   - "Clear completed": removes checked/completed items
-- State persists to `~/.local/share/checktab/checklists.json` (plain JSON)
+  - Theme selector: switch between **Gruvbox**, **Nord**, **Catppuccin**, and **Dracula** (both Light and Dark versions)
+- Built-in embedded icon font ensures icons render crisp and reliably across all Linux environments
+- State and theme persist to `~/.local/share/checktab/checklists.json` (plain JSON)
 
 ## Build
 
