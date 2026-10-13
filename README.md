@@ -4,6 +4,7 @@ A small floating multi-tab checklist app for [niri](https://niri.wf).
 
 - Multiple checklists as tabs with horizontal scrolling
 - Top toolbar:
+  - Undo action (reverts item and list mutations, disabled when history is empty)
   - Pin toggle (pinned lists display a pin icon and cannot be accidentally deleted)
   - Rename active list
   - Delete active list (requires confirmation `Sure?`; disabled on permanent tabs)

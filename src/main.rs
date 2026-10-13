@@ -22,6 +22,7 @@ const ICON_MINUS: &str = "\u{f068}"; // nf-fa-minus
 const ICON_PLUS: &str = "\u{f067}"; // nf-fa-plus
 const ICON_CLOSE: &str = "\u{f00d}"; // nf-fa-times
 const ICON_CHECK: &str = "\u{f00c}"; // nf-fa-check
+const ICON_UNDO: &str = "\u{f0e2}"; // nf-fa-undo
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ThemeChoice {
@@ -148,6 +149,7 @@ enum Message {
     ClearChecks,
     TogglePermanent,
     SelectTheme(ThemeChoice),
+    Undo,
 }
 
 #[derive(Debug, Clone)]
@@ -159,6 +161,7 @@ struct Checktab {
     rename_text: String,
     confirm_delete: bool,
     storage_path: PathBuf,
+    undo_stack: Vec<Data>,
 }
 
 impl Checktab {
@@ -173,7 +176,16 @@ impl Checktab {
             rename_text: String::new(),
             confirm_delete: false,
             storage_path,
+            undo_stack: Vec::new(),
         }
+    }
+
+    fn push_history(&mut self) {
+        const MAX_HISTORY: usize = 50;
+        if self.undo_stack.len() >= MAX_HISTORY {
+            self.undo_stack.remove(0);
+        }
+        self.undo_stack.push(self.data.clone());
     }
 
     fn data_path() -> PathBuf {
@@ -221,19 +233,34 @@ impl Checktab {
             Message::AddItem => {
                 let t = self.draft.trim().to_string();
                 if !t.is_empty() {
+                    self.push_history();
                     self.active_list().items.push(Item::new(t));
                     self.draft.clear();
                     self.save();
                 }
             }
             Message::ToggleItem(i) => {
-                if let Some(it) = self.active_list().items.get_mut(i) {
-                    it.done = !it.done;
+                let has_item = self
+                    .data
+                    .lists
+                    .get(self.active)
+                    .map(|l| i < l.items.len())
+                    .unwrap_or(false);
+                if has_item {
+                    self.push_history();
+                    self.active_list().items[i].done = !self.active_list().items[i].done;
                     self.save();
                 }
             }
             Message::RemoveItem(i) => {
-                if self.active_list().items.len() > i {
+                let has_item = self
+                    .data
+                    .lists
+                    .get(self.active)
+                    .map(|l| i < l.items.len())
+                    .unwrap_or(false);
+                if has_item {
+                    self.push_history();
                     self.active_list().items.remove(i);
                     self.save();
                 }
@@ -244,6 +271,7 @@ impl Checktab {
                 self.renaming = None;
             }
             Message::NewList => {
+                self.push_history();
                 self.confirm_delete = false;
                 self.data
                     .lists
@@ -264,10 +292,12 @@ impl Checktab {
             Message::RenameDraft(s) => self.rename_text = s,
             Message::RenameCommit => {
                 if let Some(i) = self.renaming {
-                    let t = self.rename_text.trim();
-                    if !t.is_empty() {
+                    let t = self.rename_text.trim().to_string();
+                    if !t.is_empty() && self.data.lists.get(i).map(|l| l.name != t).unwrap_or(false)
+                    {
+                        self.push_history();
                         if let Some(l) = self.data.lists.get_mut(i) {
-                            l.name = t.to_string();
+                            l.name = t;
                         }
                     }
                 }
@@ -288,6 +318,7 @@ impl Checktab {
                 if !self.confirm_delete {
                     self.confirm_delete = true;
                 } else if self.data.lists.len() > 1 {
+                    self.push_history();
                     self.data.lists.remove(self.active);
                     self.active = self.active.min(self.data.lists.len() - 1);
                     self.confirm_delete = false;
@@ -295,19 +326,37 @@ impl Checktab {
                 }
             }
             Message::ClearCompleted => {
-                let list = self.active_list();
-                list.items.retain(|it| !it.done);
-                self.save();
+                let has_done = self
+                    .data
+                    .lists
+                    .get(self.active)
+                    .map(|l| l.items.iter().any(|it| it.done))
+                    .unwrap_or(false);
+                if has_done {
+                    self.push_history();
+                    self.active_list().items.retain(|it| !it.done);
+                    self.save();
+                }
             }
             Message::ClearChecks => {
-                let list = self.active_list();
-                for item in &mut list.items {
-                    item.done = false;
+                let has_done = self
+                    .data
+                    .lists
+                    .get(self.active)
+                    .map(|l| l.items.iter().any(|it| it.done))
+                    .unwrap_or(false);
+                if has_done {
+                    self.push_history();
+                    for item in &mut self.active_list().items {
+                        item.done = false;
+                    }
+                    self.save();
                 }
-                self.save();
             }
             Message::TogglePermanent => {
-                if let Some(list) = self.data.lists.get_mut(self.active) {
+                if self.data.lists.get(self.active).is_some() {
+                    self.push_history();
+                    let list = &mut self.data.lists[self.active];
                     list.permanent = !list.permanent;
                     self.confirm_delete = false;
                     self.save();
@@ -316,6 +365,15 @@ impl Checktab {
             Message::SelectTheme(t) => {
                 self.data.theme = t;
                 self.save();
+            }
+            Message::Undo => {
+                if let Some(prev) = self.undo_stack.pop() {
+                    self.data = prev;
+                    self.active = self.active.min(self.data.lists.len().saturating_sub(1));
+                    self.confirm_delete = false;
+                    self.renaming = None;
+                    self.save();
+                }
             }
         }
     }
@@ -394,18 +452,43 @@ impl Checktab {
         if !active_is_permanent {
             del_btn = del_btn.on_press(Message::DeleteListPress);
         } else {
-            del_btn = del_btn.style(move |_theme, _status| button::Style {
-                background: Some(Background::Color(Color::from_rgba(1.0, 1.0, 1.0, 0.03))),
-                text_color: Color::from_rgba(1.0, 1.0, 1.0, 0.25),
-                border: Border::default(),
-                shadow: Shadow::default(),
+            del_btn = del_btn.style(move |theme: &Theme, _status| {
+                let mut text_color = theme.palette().text;
+                text_color.a = 0.25;
+                button::Style {
+                    background: None,
+                    text_color,
+                    border: Border::default(),
+                    shadow: Shadow::default(),
+                }
             });
         }
 
-        // action buttons: pin / rename / delete / new
+        let can_undo = !self.undo_stack.is_empty();
+        let mut undo_btn = button(text(ICON_UNDO).font(ICON_FONT).size(13.0))
+            .padding([4.0, 8.0])
+            .width(Length::Shrink);
+
+        if can_undo {
+            undo_btn = undo_btn.on_press(Message::Undo);
+        } else {
+            undo_btn = undo_btn.style(move |theme: &Theme, _status| {
+                let mut text_color = theme.palette().text;
+                text_color.a = 0.25;
+                button::Style {
+                    background: None,
+                    text_color,
+                    border: Border::default(),
+                    shadow: Shadow::default(),
+                }
+            });
+        }
+
+        // action buttons: undo / pin / rename / delete / new
         let actions = Row::new()
             .spacing(4.0)
             .align_y(Alignment::Center)
+            .push(undo_btn)
             .push(pin_btn)
             .push(
                 button(text(ICON_EDIT).font(ICON_FONT).size(13.0))
@@ -654,6 +737,7 @@ mod tests {
             rename_text: String::new(),
             confirm_delete: false,
             storage_path: temp_file.to_path_buf(),
+            undo_stack: Vec::new(),
         }
     }
 
@@ -783,6 +867,164 @@ mod tests {
             let _iced_theme = app.theme();
             let _accent = theme_accent(theme_choice);
         }
+
+        let _ = std::fs::remove_file(temp);
+    }
+
+    #[test]
+    fn test_undo_toggle_item() {
+        let temp = std::env::temp_dir().join(format!("checktab-test-{}.json", Uuid::new_v4()));
+        let mut app = create_test_checktab(&temp);
+
+        assert!(!app.active_list().items[1].done);
+        app.do_update(Message::ToggleItem(1));
+        assert!(app.active_list().items[1].done);
+
+        app.do_update(Message::Undo);
+        assert!(!app.active_list().items[1].done);
+
+        let _ = std::fs::remove_file(temp);
+    }
+
+    #[test]
+    fn test_undo_clear_checks() {
+        let temp = std::env::temp_dir().join(format!("checktab-test-{}.json", Uuid::new_v4()));
+        let mut app = create_test_checktab(&temp);
+
+        assert!(app.active_list().items[0].done);
+        app.do_update(Message::ClearChecks);
+        assert!(!app.active_list().items[0].done);
+
+        app.do_update(Message::Undo);
+        assert!(app.active_list().items[0].done);
+        assert!(!app.active_list().items[1].done);
+
+        let _ = std::fs::remove_file(temp);
+    }
+
+    #[test]
+    fn test_undo_clear_completed() {
+        let temp = std::env::temp_dir().join(format!("checktab-test-{}.json", Uuid::new_v4()));
+        let mut app = create_test_checktab(&temp);
+
+        assert_eq!(app.active_list().items.len(), 2);
+        app.do_update(Message::ClearCompleted);
+        assert_eq!(app.active_list().items.len(), 1);
+        assert_eq!(app.active_list().items[0].text, "Step 2");
+
+        app.do_update(Message::Undo);
+        assert_eq!(app.active_list().items.len(), 2);
+        assert_eq!(app.active_list().items[0].text, "Step 1");
+        assert!(app.active_list().items[0].done);
+        assert_eq!(app.active_list().items[1].text, "Step 2");
+        assert!(!app.active_list().items[1].done);
+
+        let _ = std::fs::remove_file(temp);
+    }
+
+    #[test]
+    fn test_undo_add_and_remove_item() {
+        let temp = std::env::temp_dir().join(format!("checktab-test-{}.json", Uuid::new_v4()));
+        let mut app = create_test_checktab(&temp);
+
+        app.draft = "Step 3".to_string();
+        app.do_update(Message::AddItem);
+        assert_eq!(app.active_list().items.len(), 3);
+        assert_eq!(app.active_list().items[2].text, "Step 3");
+
+        app.do_update(Message::Undo);
+        assert_eq!(app.active_list().items.len(), 2);
+
+        app.do_update(Message::RemoveItem(0));
+        assert_eq!(app.active_list().items.len(), 1);
+        assert_eq!(app.active_list().items[0].text, "Step 2");
+
+        app.do_update(Message::Undo);
+        assert_eq!(app.active_list().items.len(), 2);
+        assert_eq!(app.active_list().items[0].text, "Step 1");
+
+        let _ = std::fs::remove_file(temp);
+    }
+
+    #[test]
+    fn test_undo_new_list_and_delete_list() {
+        let temp = std::env::temp_dir().join(format!("checktab-test-{}.json", Uuid::new_v4()));
+        let mut app = create_test_checktab(&temp);
+
+        app.do_update(Message::NewList);
+        assert_eq!(app.data.lists.len(), 3);
+
+        app.do_update(Message::Undo);
+        assert_eq!(app.data.lists.len(), 2);
+
+        // Delete list 1 ("Scratchpad", non-permanent)
+        app.active = 1;
+        app.do_update(Message::DeleteListPress);
+        app.do_update(Message::DeleteListPress);
+        assert_eq!(app.data.lists.len(), 1);
+
+        app.do_update(Message::Undo);
+        assert_eq!(app.data.lists.len(), 2);
+        assert_eq!(app.data.lists[1].name, "Scratchpad");
+
+        let _ = std::fs::remove_file(temp);
+    }
+
+    #[test]
+    fn test_undo_rename_list() {
+        let temp = std::env::temp_dir().join(format!("checktab-test-{}.json", Uuid::new_v4()));
+        let mut app = create_test_checktab(&temp);
+
+        app.do_update(Message::RenameStart(0));
+        app.do_update(Message::RenameDraft("Renamed List".to_string()));
+        app.do_update(Message::RenameCommit);
+        assert_eq!(app.data.lists[0].name, "Renamed List");
+
+        app.do_update(Message::Undo);
+        assert_eq!(app.data.lists[0].name, "On Boarding");
+
+        let _ = std::fs::remove_file(temp);
+    }
+
+    #[test]
+    fn test_undo_toggle_permanent() {
+        let temp = std::env::temp_dir().join(format!("checktab-test-{}.json", Uuid::new_v4()));
+        let mut app = create_test_checktab(&temp);
+
+        assert!(app.data.lists[0].permanent);
+        app.do_update(Message::TogglePermanent);
+        assert!(!app.data.lists[0].permanent);
+
+        app.do_update(Message::Undo);
+        assert!(app.data.lists[0].permanent);
+
+        let _ = std::fs::remove_file(temp);
+    }
+
+    #[test]
+    fn test_undo_history_cap() {
+        let temp = std::env::temp_dir().join(format!("checktab-test-{}.json", Uuid::new_v4()));
+        let mut app = create_test_checktab(&temp);
+
+        for i in 0..60 {
+            app.draft = format!("Item {i}");
+            app.do_update(Message::AddItem);
+        }
+
+        assert_eq!(app.undo_stack.len(), 50);
+
+        let _ = std::fs::remove_file(temp);
+    }
+
+    #[test]
+    fn test_undo_empty_stack_noop() {
+        let temp = std::env::temp_dir().join(format!("checktab-test-{}.json", Uuid::new_v4()));
+        let mut app = create_test_checktab(&temp);
+
+        assert!(app.undo_stack.is_empty());
+        let lists_before = app.data.lists.len();
+        app.do_update(Message::Undo);
+        assert_eq!(app.data.lists.len(), lists_before);
 
         let _ = std::fs::remove_file(temp);
     }
