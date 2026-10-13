@@ -2,10 +2,16 @@
 
 A small floating multi-tab checklist app for [niri](https://niri.wf).
 
-- Multiple checklists as tabs (`+` to create, double-click a tab to rename,
-  `+` turns into `Sure?` to delete the active list)
-- Add items with the input box (Enter), toggle by clicking, remove with `×`
-- "Clear completed" in the footer
+- Multiple checklists as tabs with horizontal scrolling
+- Top toolbar:
+  - `📌` toggle permanent list (pinned lists display a `📌` icon and cannot be accidentally deleted)
+  - `✎` rename active list
+  - `−` delete active list (requires confirmation `Sure?`; disabled on permanent tabs)
+  - `+` create a new list
+- Add items with the input box (Enter), toggle checkboxes, remove items with `×`
+- Footer actions:
+  - "Clear checks": unchecks all items while preserving all item fields and list contents
+  - "Clear completed": removes checked/completed items
 - State persists to `~/.local/share/checktab/checklists.json` (plain JSON)
 
 ## Build
